@@ -44,3 +44,42 @@ if [ $(date +%a) = "Sat" ] || [ $(date +%a) = "Sun" ]; then
 fi
 ```
 И настраиваем PAM
+```
+#%PAM-1.0
+auth       substack     password-auth
+auth       include      postlogin
+# Used with polkit to reauthorize users in remote sessions
+account    required     pam_exec.so  /usr/local/bin/login.sh 
+account    required     pam_nologin.so
+account    include      password-auth
+password   include      password-auth
+# pam_selinux.so close should be the first session rule
+session    required     pam_selinux.so close
+session    required     pam_loginuid.so
+# pam_selinux.so open should only be followed by sessions to be executed in the user context
+session    required     pam_selinux.so open env_params
+session    required     pam_namespace.so
+session    optional     pam_keyinit.so force revoke
+session    include      password-auth
+session    include      postlogin
+# Used with polkit to reauthorize users in remote sessions
+```
+Проверка. Я задал дату 3 июня 2023, суббота
+```
+[root@pam ~]# date
+Sat Jun  3 12:40:24 UTC 2023
+```
+```
+[root@pam ~]# ssh otusadm@192.168.57.10
+otusadm@192.168.57.10's password: 
+Last login: Sat Jun  3 12:33:29 2023 from 192.168.57.10
+
+[otusadm@pam ~]$ exit
+logout
+Connection to 192.168.57.10 closed.
+[root@pam ~]# ssh otus@192.168.57.10
+otus@192.168.57.10's password: 
+/usr/local/bin/login.sh failed: exit code 1
+Authentication failed.
+```
+Как видно, залогиниться в субботу можно только пользователю из группы admin, обычнй пользователь будет "отшит" системой до понедельника
